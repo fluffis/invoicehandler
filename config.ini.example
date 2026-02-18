@@ -1,0 +1,13 @@
+[settings]
+watch_directory = /path/to/watch
+max_lock_retries = 30
+lock_retry_delay_ms = 1000
+
+[translations]
+# Format: regex_pattern = replacement_string
+# Uses Rust regex syntax with capture groups
+#
+# Examples:
+# invoice_(\d{4})_(\d{2})_(\d{2})_(.+)\.pdf = Invoice_$4_$1-$2-$3.pdf
+# invoice_acme_(.+)\.pdf = Acme_Corp_Invoice_$1.pdf
+
