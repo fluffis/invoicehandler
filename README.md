@@ -8,6 +8,29 @@ A file watcher that automatically renames files based on configurable regex patt
 cargo build --release
 ```
 
+## Installation (Linux)
+
+The install script builds the binary, installs it to `~/.local/bin`, and creates a systemd user service.
+
+```bash
+./install.sh
+```
+
+After installation, create your config file at `~/.invoicehandler`, then enable and start the service:
+
+```bash
+systemctl --user enable invoicehandler.service
+systemctl --user start invoicehandler.service
+```
+
+### Service management
+
+```bash
+systemctl --user status invoicehandler.service  # Check status
+systemctl --user restart invoicehandler.service # Restart after config changes
+journalctl --user -u invoicehandler.service     # View logs
+```
+
 ## Configuration
 
 Create a config file at the appropriate location for your platform:
