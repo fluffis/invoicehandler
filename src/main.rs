@@ -57,7 +57,7 @@ fn load_rules(config_path: &Path) -> Result<Vec<(Regex, String)>, String> {
                     println!("Loaded rule: {} -> {}", pattern, replacement);
                 }
                 Err(e) => {
-                    return Err(format!("Invalid regex pattern '{}': {}", pattern, e));
+                    eprintln!("Skipping invalid regex pattern '{}': {}", pattern, e);
                 }
             }
         }
