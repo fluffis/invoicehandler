@@ -1,4 +1,5 @@
 use notify::{Config, Event, EventKind, RecommendedWatcher, RecursiveMode, Watcher};
+use notify_rust::{Notification, Urgency};
 use regex::Regex;
 use std::fs::{self, OpenOptions};
 use std::path::{Path, PathBuf};
@@ -122,12 +123,25 @@ fn apply_rename(file_path: &Path, rules: &[(Regex, String)], settings: &Settings
                 match fs::rename(file_path, &new_path) {
                     Ok(()) => {
                         println!("Renamed: {} -> {}", filename, new_filename);
+                        let _ = Notification::new()
+                            .summary("File Renamed")
+                            .body(&format!("{} → {}", filename, new_filename))
+                            .urgency(Urgency::Normal)
+                            .show();
                     }
                     Err(e) => {
                         eprintln!(
                             "Failed to rename '{}' to '{}': {}",
                             filename, new_filename, e
                         );
+                        let _ = Notification::new()
+                            .summary("Rename Failed")
+                            .body(&format!(
+                                "Failed to rename '{}' to '{}': {}",
+                                filename, new_filename, e
+                            ))
+                            .urgency(Urgency::Critical)
+                            .show();
                     }
                 }
             }
