@@ -1,0 +1,11 @@
+[package]
+name = "invoicehandler"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+dirs = { workspace = true }
+notify = "6"
+regex = { workspace = true }
+rust-ini = { workspace = true }
+notify-rust = "4"

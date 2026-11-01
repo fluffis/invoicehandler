@@ -1,11 +1,8 @@
-[package]
-name = "invoicehandler"
-version = "0.1.0"
-edition = "2021"
+[workspace]
+members = ["handler", "fetcher"]
+resolver = "2"
 
-[dependencies]
+[workspace.dependencies]
 dirs = "5"
-notify = "6"
 regex = "1"
 rust-ini = "0.21"
-notify-rust = "4"

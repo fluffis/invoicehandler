@@ -1,0 +1,54 @@
+[imap]
+server = imap.example.com
+port = 993
+username = user@example.com
+mailbox = INBOX
+
+# Authentication method: "password" (default) or "oauth2"
+auth_method = password
+
+# For password auth:
+password = app-specific-password
+
+# For oauth2 auth (Google):
+# auth_method = oauth2
+# client_id = your-google-client-id.apps.googleusercontent.com
+# client_secret = your-google-client-secret
+# Then run: invoicefetcher --auth
+
+[settings]
+# Directory where downloaded files are placed (should be invoicehandler's watch directory)
+output_directory = /home/user/Documents/invoices
+# Seconds to wait before reconnecting after IMAP connection drops
+reconnect_delay_secs = 30
+# Timeout in seconds for browser page loads
+browser_timeout_secs = 30
+# Optional: path to chromium/chrome binary (auto-detected if omitted)
+# browser_binary = /usr/bin/chromium-browser
+# Run browser with a visible window (default: true = headless)
+# Set to false to see the browser and inspect pages with DevTools
+browser_headless = true
+# IMAP folder to move successfully processed emails to (optional)
+# For Gmail, use the label name directly (e.g. "Ekonomi")
+# If unset, processed emails are left in place
+processed_folder = Ekonomi
+
+# Rules: each [rule.<name>] section defines an email-to-download rule.
+# First matching rule wins.
+# Two rule types: browser download (link_pattern + download_selector)
+#                 or attachment save (attachment_pattern)
+
+# Example: browser download rule
+# Opens a link from the email in a headless browser, clicks a button to download.
+[rule.example_browser]
+sender = billing@example.com
+subject_pattern = Your invoice is ready
+link_pattern = href="(https://example\.com/invoice/[^"]+)"
+download_selector = a.download-btn
+
+# Example: attachment rule
+# Saves an email attachment whose filename matches the pattern.
+[rule.example_attachment]
+sender = invoices@vendor.com
+# subject_pattern = Invoice  # optional
+attachment_pattern = .*\.pdf$
