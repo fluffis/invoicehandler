@@ -1,3 +1,4 @@
+use log::{debug, error, info, warn};
 use notify::{Config, Event, EventKind, RecommendedWatcher, RecursiveMode, Watcher};
 use notify_rust::{Notification, Urgency};
 use regex::Regex;
@@ -55,10 +56,10 @@ fn load_rules(config_path: &Path) -> Result<Vec<(Regex, String)>, String> {
             match Regex::new(pattern) {
                 Ok(regex) => {
                     rules.push((regex, replacement.to_string()));
-                    println!("Loaded rule: {} -> {}", pattern, replacement);
+                    info!("Loaded rule: {} -> {}", pattern, replacement);
                 }
                 Err(e) => {
-                    eprintln!("Skipping invalid regex pattern '{}': {}", pattern, e);
+                    warn!("Skipping invalid regex pattern '{}': {}", pattern, e);
                 }
             }
         }
@@ -75,7 +76,7 @@ fn wait_for_file_unlock(file_path: &Path, settings: &Settings) -> bool {
             }
             Err(e) => {
                 if attempt < settings.max_lock_retries {
-                    println!(
+                    debug!(
                         "File '{}' is locked (attempt {}/{}): {}. Retrying...",
                         file_path.display(),
                         attempt,
@@ -84,7 +85,7 @@ fn wait_for_file_unlock(file_path: &Path, settings: &Settings) -> bool {
                     );
                     thread::sleep(Duration::from_millis(settings.lock_retry_delay_ms));
                 } else {
-                    eprintln!(
+                    error!(
                         "File '{}' remained locked after {} attempts. Skipping.",
                         file_path.display(),
                         settings.max_lock_retries
@@ -107,7 +108,7 @@ fn apply_rename(file_path: &Path, rules: &[(Regex, String)], settings: &Settings
         None => return,
     };
 
-    println!("Extracted filename: {}", filename);
+    debug!("Extracted filename: {}", filename);
 
     if !wait_for_file_unlock(file_path, settings) {
         return;
@@ -122,15 +123,15 @@ fn apply_rename(file_path: &Path, rules: &[(Regex, String)], settings: &Settings
 
                 match fs::rename(file_path, &new_path) {
                     Ok(()) => {
-                        println!("Renamed: {} -> {}", filename, new_filename);
+                        info!("Renamed: {} -> {}", filename, new_filename);
                         let _ = Notification::new()
                             .summary("File Renamed")
-                            .body(&format!("{} → {}", filename, new_filename))
+                            .body(&format!("{} -> {}", filename, new_filename))
                             .urgency(Urgency::Normal)
                             .show();
                     }
                     Err(e) => {
-                        eprintln!(
+                        error!(
                             "Failed to rename '{}' to '{}': {}",
                             filename, new_filename, e
                         );
@@ -149,7 +150,7 @@ fn apply_rename(file_path: &Path, rules: &[(Regex, String)], settings: &Settings
         }
     }
 
-    println!("No matching rule for: {}", filename);
+    debug!("No matching rule for: {}", filename);
 }
 
 fn get_config_path() -> PathBuf {
@@ -185,24 +186,46 @@ fn get_config_path() -> PathBuf {
     }
 }
 
+fn init_logging() {
+    let formatter = syslog::Formatter3164 {
+        facility: syslog::Facility::LOG_USER,
+        hostname: None,
+        process: "invoicehandler".to_string(),
+        pid: std::process::id(),
+    };
+
+    match syslog::unix(formatter) {
+        Ok(logger) => {
+            log::set_boxed_logger(Box::new(syslog::BasicLogger::new(logger)))
+                .map(|()| log::set_max_level(log::LevelFilter::Info))
+                .expect("Failed to set logger");
+        }
+        Err(e) => {
+            eprintln!("Failed to connect to syslog: {}. Falling back to stderr.", e);
+        }
+    }
+}
+
 fn main() {
+    init_logging();
+
     let config_path = get_config_path();
     if !config_path.exists() {
-        eprintln!("Error: config.ini not found at {:?}", config_path);
+        error!("Config file not found at {:?}", config_path);
         std::process::exit(1);
     }
 
     let settings = match load_settings(&config_path) {
         Ok(s) => s,
         Err(e) => {
-            eprintln!("Error loading settings: {}", e);
+            error!("Error loading settings: {}", e);
             std::process::exit(1);
         }
     };
 
     if !settings.watch_directory.is_dir() {
-        eprintln!(
-            "Error: '{}' is not a valid directory",
+        error!(
+            "'{}' is not a valid directory",
             settings.watch_directory.display()
         );
         std::process::exit(1);
@@ -211,18 +234,18 @@ fn main() {
     let mut rules = match load_rules(&config_path) {
         Ok(r) => r,
         Err(e) => {
-            eprintln!("Error loading rules: {}", e);
+            error!("Error loading rules: {}", e);
             std::process::exit(1);
         }
     };
 
     if rules.is_empty() {
-        eprintln!("Warning: No valid translation rules loaded");
+        warn!("No valid translation rules loaded");
     }
 
-    println!("Watching directory: {:?}", settings.watch_directory);
-    println!("Watching config: {:?}", config_path);
-    println!("Loaded {} translation rules", rules.len());
+    info!("Watching directory: {:?}", settings.watch_directory);
+    info!("Watching config: {:?}", config_path);
+    info!("Loaded {} translation rules", rules.len());
 
     let (tx, rx) = channel();
 
@@ -245,26 +268,26 @@ fn main() {
         .watch(&config_path, RecursiveMode::NonRecursive)
         .expect("Failed to watch config file");
 
-    println!("File watcher started. Press Ctrl+C to stop.");
+    info!("File watcher started");
 
     for event in rx {
-        println!("Event received: {:?}", event.kind);
+        debug!("Event received: {:?}", event.kind);
         match event.kind {
             EventKind::Create(_) | EventKind::Modify(_) => {
                 for path in &event.paths {
                     if path == &config_path {
-                        println!("Config file changed, reloading rules...");
+                        info!("Config file changed, reloading rules...");
                         match load_rules(&config_path) {
                             Ok(new_rules) => {
                                 rules = new_rules;
-                                println!("Reloaded {} translation rules", rules.len());
+                                info!("Reloaded {} translation rules", rules.len());
                             }
                             Err(e) => {
-                                eprintln!("Failed to reload config: {}. Keeping old rules.", e);
+                                error!("Failed to reload config: {}. Keeping old rules.", e);
                             }
                         }
                     } else {
-                        println!("Found file at {:?}", &path);
+                        debug!("Found file at {:?}", &path);
                         apply_rename(path, &rules, &settings);
                     }
                 }

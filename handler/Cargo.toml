@@ -9,3 +9,5 @@ notify = "6"
 regex = { workspace = true }
 rust-ini = { workspace = true }
 notify-rust = "4"
+log = "0.4"
+syslog = "7"

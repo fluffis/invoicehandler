@@ -23,6 +23,9 @@ impl BrowserSession {
         log::debug!("Creating download directory: {}", download_dir.display());
         fs::create_dir_all(&download_dir).await?;
 
+        // Clean up files older than 24 hours
+        cleanup_old_files(&download_dir, Duration::from_secs(24 * 60 * 60)).await;
+
         let mut config_builder = BrowserConfig::builder().no_sandbox();
 
         if settings.browser_headless {
@@ -368,4 +371,37 @@ fn extract_filename(response: &reqwest::Response, url: &str) -> String {
         .filter(|s| !s.is_empty() && s.contains('.'))
         .unwrap_or("download")
         .to_string()
+}
+
+/// Remove files in `dir` that are older than `max_age`.
+async fn cleanup_old_files(dir: &std::path::Path, max_age: Duration) {
+    let mut entries = match fs::read_dir(dir).await {
+        Ok(e) => e,
+        Err(_) => return,
+    };
+
+    let mut removed = 0u32;
+    while let Ok(Some(entry)) = entries.next_entry().await {
+        let metadata = match entry.metadata().await {
+            Ok(m) => m,
+            Err(_) => continue,
+        };
+        if !metadata.is_file() {
+            continue;
+        }
+        let modified = match metadata.modified() {
+            Ok(t) => t,
+            Err(_) => continue,
+        };
+        if modified.elapsed().unwrap_or_default() > max_age {
+            if let Err(e) = fs::remove_file(entry.path()).await {
+                log::debug!("Failed to remove old file {:?}: {}", entry.path(), e);
+            } else {
+                removed += 1;
+            }
+        }
+    }
+    if removed > 0 {
+        log::debug!("Cleaned up {} old file(s) from {}", removed, dir.display());
+    }
 }
